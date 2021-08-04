@@ -34,18 +34,18 @@ class Metyis:
             self.conectado = 1
             pass
         except Error:
-            print("\x1b[1;31m"+"Error de conexión con la Base de Datos")
+            print("Error de conexión con la Base de Datos")
      
     """
     Desconexión de la base de datos
     """
-    def disconnect(self,con):
+    def disconnect(self):
         try:
             if self.conectado == 1:
                 self.con.close()
             pass
         except Exception:
-            print("\x1b[1;31m"+"Error de desconexión con la Base de Datos")
+            print("Error de desconexión con la Base de Datos")
             
     """
     Creación de las tablas en la base de datos'
@@ -108,13 +108,15 @@ class Metyis:
         return lista_combinada
     
     """
-    EJERCICIOS
+    EJERCICIOS OBLIGATORIOS
     """
 
     """ 
     1.  Histograma de tiempos de viaje para un año dado
     """
     def get_hist(self, year:int):
+        if not type(year) == int or year < self.minimo or year > self.maximo:
+            raise ValueError('Valor del año incorrecto. Debe ser un número entre ')
         try:
             cursorObj = self.con.cursor()
 
@@ -135,8 +137,8 @@ class Metyis:
             plt.show()  
             pass
 
-        except Exception:
-            print("\x1b[1;31m"+"ERROR! Año no encontrado")
+        except Error:
+            print("Error en la Base de Datos")
     
     """
     2.  Listado del Top N de estaciones más utilizadas para un año dado.
@@ -203,7 +205,7 @@ class Metyis:
                 print(i+1,stations[i])
             pass
         except Error:
-            print("\x1b[1;31m"+"ERROR! Año no encontrado")
+            print('Error en la base de datos')
         
 
     """
@@ -237,8 +239,8 @@ class Metyis:
                 print(i+1,'Salida:',stations[i][0], 
                       '\n\tLlegada:',stations[i][1])
             pass
-        except Exception:
-            print("\x1b[1;31m"+"ERROR! Año no encontrado")
+        except Error:
+            print('Error en la base de datos')
     
     """
     4.  Identificación de horas punta para un año determinado sin tener en 
@@ -269,14 +271,168 @@ class Metyis:
             for i in range(0,N):
                 print(i+1,'Hora:',hora[i][0])
             pass
-        except Exception:
-            print("\x1b[1;31m"+"ERROR! Año no encontrado")
-            
+        except Error:
+            print('Error en la base de datos')
     
-if __name__ == "__main__":  
-    user = Metyis()
-    #user.create_Tables()
-    #user.get_hist(2016)
-    user.get_TopN(2, 2014, 4)
-    #user.get_TopNViajes(6, 2014)
-    #user.get_NHoraPunta(6, 2014)
+            
+    """
+    EJERCICIOS DESEABLES:
+    
+    1.  Pruebas unitarias sobre los distintos módulos/objetos/funciones
+        - ver modulo test_metyis.py
+        
+    2.  Comparación de utilización del sistema entre dos años cualesquiera. 
+        La utilización del sistema se puede medir como:
+        1. Cantidad de viajes totales
+        2. Tiempo total de utilización del sistema
+        3. Cantidad de viajes por estaciones/bicicletas disponibles
+    """
+    def get_comparar(self, year1:int, year2:int, option:int):
+        if (not type(year1) == int or year1 < self.minimo or year1 > self.maximo) or (not type(year2) == int or year2 < self.minimo or year2 > self.maximo):
+            raise ValueError('Valor del año incorrecto. Debe ser un número entre '
+                             + str(self.minimo)+' y '+ str(self.maximo))
+        elif not type(option) == int or option < 1 or option > 3:
+            raise ValueError('Opción incorrecta. Seleccione 1, 2 o 3')
+        try:
+            cursorObj = self.con.cursor()
+            
+            if option == 1:
+                cursorObj.execute('''SELECT count(*) FROM OD_'''+str(year1))
+                cyear1 = cursorObj.fetchall()
+                cursorObj.execute('''SELECT count(*) FROM OD_'''+str(year2))
+                cyear2 = cursorObj.fetchall()
+                resultado = [cyear1[0][0],cyear2[0][0]]
+                print('Cantidad de viajes:\n\t'+str(year1)+': '+
+                      str(resultado[0]) + '\n\t'+str(year2)+': '+str(resultado[1]))
+            elif option == 2:
+                cursorObj.execute('''SELECT sum(julianday(od.end_date)-
+                                  julianday(od.start_date)) FROM OD_'''+str(year1)+''' od''')
+                cyear1 = cursorObj.fetchall()
+                cursorObj.execute('''SELECT sum(julianday(od.end_date)-
+                                  julianday(od.start_date)) FROM OD_'''+str(year2)+''' od''')
+                cyear2 = cursorObj.fetchall()
+                resultado = [cyear1[0][0],cyear2[0][0]]
+                print('Tiempo del sistema (días):\n\t'+str(year1)+': '+
+                      str(resultado[0]) + '\n\t'+str(year2)+': '+str(resultado[1]))
+                
+            else:
+                cursorObj.execute('''SELECT st.name, 
+                                  count(od2.start_station_code), T.total 
+                                  FROM OD_'''+str(year1)+''' od2 
+                                  INNER JOIN (SELECT od.start_station_code, 
+                                              count(*) as total 
+                                              FROM OD_'''+str(year2)+''' od
+                                              GROUP By od.start_station_code) 
+                                  AS T 
+                                  ON od2.start_station_code = T.start_station_code
+                                  INNER JOIN Stations_'''+str(year1)+''' st 
+                                  ON st.code = od2.start_station_code
+                                  GROUP BY od2.start_station_code''')
+                cyear1 = cursorObj.fetchall()
+                
+                print('Comparación de viajes en estaciones entre los años '+
+                      str(year1)+ ' y '+str(year2))
+                for i in cyear1:
+                    print('Estación: ' +i[0]+'\n\t'+str(year1)+': '+ str(i[1])
+                          +'\n\t'+str(year2)+': '+ str(i[2]))
+            
+            pass
+        except Error:
+            print('Error en la base de datos')
+
+
+
+
+    """
+    3.  Capacidad instalada total (suma de la capacidad total de cada 
+        estación)
+        NOTA: No entiendo a qué se refiere en cuanto a la capacidad de una estación
+    
+    4.  Cambio en la capacidad instalada entre dos años puntuales
+        NOTA: No entiendo a qué se refiere en cuanto a la capacidad
+    """
+    
+    
+    """
+    EJERCICIOS IDEALES
+    
+    1.  Ampliación de la cobertura de la red entre dos años puntuales.
+        La misma se puede medir como el área total que generan las estaciones
+    """
+    def get_area(self,x:list,y:list):
+        
+        n = len(x)-1
+        #Algoritmo para la determinación del área
+        for i in range(n):
+            suma=(x[i]*(y[i+1]-y[i-1])) # Formula del área Gauss
+
+        area=(1/2)*abs(suma)
+ 
+        return area
+     
+    def get_ampliacion(self,year1:int,year2:int):
+        if (not type(year1) == int or year1 < self.minimo or year1 > self.maximo) or (not type(year2) == int or year2 < self.minimo or year2 > self.maximo):
+            raise ValueError('Valor del año incorrecto. Debe ser un número entre '
+                             + str(self.minimo)+' y '+ str(self.maximo))
+        try:
+            cursorObj = self.con.cursor()
+            
+            cursorObj.execute('''SELECT latitude, longitude FROM Stations_'''+str(year1))
+            cyear = cursorObj.fetchall()
+            x = [i[0] for i in cyear]  
+            y = [i[1] for i in cyear]
+            area1 = self.get_area(x, y)
+            cursorObj.execute('''SELECT latitude, longitude FROM Stations_'''+str(year2))
+            cyear = cursorObj.fetchall()
+            x = [i[0] for i in cyear]  
+            y = [i[1] for i in cyear]
+            area2 = self.get_area(x, y)
+            print('Ampliación entre el año '+str(year1)+' y '+str(year2)+ ': '+str(area2-area1))
+            pass
+        except Error:
+            print('Error en la base de datos')
+            
+    """
+    2.  Comparación de densidad de la red para un par de años puntuales. 
+        La densidad de la red se mide como el área que abarcan todas las 
+        estaciones, dividida la cantidad de estaciones
+    """
+    def get_densidad(self,year1:int,year2:int):
+        if (not type(year1) == int or year1 < self.minimo or year1 > self.maximo) or (not type(year2) == int or year2 < self.minimo or year2 > self.maximo):
+            raise ValueError('Valor del año incorrecto. Debe ser un número entre '
+                             + str(self.minimo)+' y '+ str(self.maximo))
+        try:
+            cursorObj = self.con.cursor()
+            
+            cursorObj.execute('''SELECT latitude, longitude FROM Stations_'''+str(year1))
+            cyear = cursorObj.fetchall()
+            x = [i[0] for i in cyear]  
+            y = [i[1] for i in cyear]
+            area1 = self.get_area(x, y)
+            cursorObj.execute('''SELECT latitude, longitude FROM Stations_'''+str(year2))
+            cyear = cursorObj.fetchall()
+            x = [i[0] for i in cyear]  
+            y = [i[1] for i in cyear]
+            area2 = self.get_area(x, y)
+            cursorObj.execute('''SELECT count(st1.code) AS total1, T.total2
+                              FROM Stations_'''+str(year1)+''' st1, 
+                              (SELECT count(st2.code) AS total2
+                               FROM Stations_'''+str(year2)+''' st2) AS T''')
+            cestaciones = cursorObj.fetchall()
+            densidad1 =   area1/cestaciones[0][0]
+            densidad2 =   area2/cestaciones[0][1]
+            print('Densidad entre el año '+str(year1)+' y '+str(year2)+ ': \n\t'+
+                  str(year1)+': '+str(densidad1) + ': \n\t'+
+                  str(year2)+': '+str(densidad2))
+            pass
+        except Error:
+            print('Error en la base de datos')
+    """
+    EJERCICIOS CON BICICLETAS (?)
+    3.  Velocidad promedio de los ciclistas para un año determinado
+    
+    4.  Cantidad de bicicletas totales para un momento dado. Considerando la
+        misma como la cantidad de bicicletas que hay en todas las estaciones 
+        activas para ese momento, más todos los viajes que se estén realizando
+    """
+    
